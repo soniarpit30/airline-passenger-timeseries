@@ -204,21 +204,7 @@ print(f'{pdq[1]} x {seasonal_pdq[1]}')
 print(f'{pdq[2]} x {seasonal_pdq[2]}')
 
 # implemeting the above paramters by using permutation n combination to get best AIC value
-'''
-for param in pdq:
-    for param_seasonal in seasonal_pdq:
-        try:
-            model = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], 
-                                              order = param , 
-                                              seasonal_order = param_seasonal, 
-                                              enforce_stationarity=False, 
-                                              enforce_invertibility=False)
-            result = model.fit()
-            print(f'ARIMA{param} x {param_seasonal} - AIC:{result.aic}')
-            
-        except:
-            continue
-'''
+
 
 # Define function
 def sarimax_gridsearch(ts, pdq, seasonal_pdq, maxiter=50):
