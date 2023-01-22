@@ -181,7 +181,7 @@ print(result4.summary())
 model3 = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], order=(2,2,2), seasonal_order = (2,1,3,12))
 result3 = model3.fit()
 print(result3.summary())
-s
+
 model2 = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], order=(2,2,2), seasonal_order = (2,1,2,12))
 result2 = model2.fit()
 print(result2.summary())
@@ -189,3 +189,110 @@ print(result2.summary())
 model1 = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], order=(2,2,2), seasonal_order = (2,1,1,12))
 result1 = model1.fit()
 print(result1.summary())
+
+
+# Auto ARIMA approach
+import itertools
+
+p = q = d = range(0,3)
+
+pdq = list(itertools.product(p, d, q))
+seasonal_pdq = [(x[0], x[1], x[2], 12) for x in pdq]
+                 
+print('few parameter combination are: ')
+print(f'{pdq[1]} x {seasonal_pdq[1]}')
+print(f'{pdq[2]} x {seasonal_pdq[2]}')
+
+# implemeting the above paramters by using permutation n combination to get best AIC value
+'''
+for param in pdq:
+    for param_seasonal in seasonal_pdq:
+        try:
+            model = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], 
+                                              order = param , 
+                                              seasonal_order = param_seasonal, 
+                                              enforce_stationarity=False, 
+                                              enforce_invertibility=False)
+            result = model.fit()
+            print(f'ARIMA{param} x {param_seasonal} - AIC:{result.aic}')
+            
+        except:
+            continue
+'''
+
+# Define function
+def sarimax_gridsearch(ts, pdq, seasonal_pdq, maxiter=50):
+    '''
+    Input: 
+        ts : your time series data
+        pdq : ARIMA combinations from above
+        pdqs : seasonal ARIMA combinations from above
+        maxiter : number of iterations, increase if your model isn't converging
+        frequency : default='M' for month. Change to suit your time series frequency
+            e.g. 'D' for day, 'H' for hour, 'Y' for year. 
+        
+    Return:
+        Prints out top 5 parameter combinations
+        Returns dataframe of parameter combinations ranked by AIC
+    '''
+
+    # Run a grid search with pdq and seasonal pdq parameters and get the best BIC value
+    ans = []
+    for comb in pdq:
+        for combs in seasonal_pdq:
+            try:
+                model = sm.tsa.statespace.SARIMAX(ts, # this is your time series you will input
+                                                order=comb,
+                                                seasonal_order=combs,
+                                                enforce_stationarity=False,
+                                                enforce_invertibility=False)
+
+                output = model.fit(maxiter=maxiter) 
+                ans.append([comb, combs, output.aic])
+                print('SARIMAX {} x {}12 : AIC Calculated ={}'.format(comb, combs, output.aic))
+            except:
+                continue
+            
+    # Find the parameters with minimal AIC value
+
+    # Convert into dataframe
+    ans_df = pd.DataFrame(ans, columns=['pdq', 'seasonal_pdq', 'aic'])
+
+    # Sort and return top 5 combinations
+    ans_df = ans_df.sort_values(by=['aic'],ascending=True)[0:5]
+    
+    return ans_df
+    
+### Apply function to your time series data ###
+
+# Remember to change frequency to match your time series data
+sarimax_gridsearch(data['Thousands of Passengers'], pdq, seasonal_pdq)
+            
+# setting the model with best parameters
+
+model = sm.tsa.statespace.SARIMAX(data['Thousands of Passengers'], order=(2, 1, 2), seasonal_order = (0, 2, 2, 12))
+result = model.fit()
+print(result.summary())
+            
+# validate wheather my model is right or wrong
+
+data['forecast'] = result.predict(start=130, end=144, dynamic= True)
+data[['Thousands of Passengers', 'forecast']].plot()
+
+# model is predicting good
+
+from pandas.tseries.offsets import DateOffset
+
+futureDates = [data.index[-1] + DateOffset(months=x) for x in range(0,61)]
+
+futureDates_df = pd.DataFrame(index=futureDates[1:], columns=data.columns)
+
+futureDates_df = pd.concat([data, futureDates_df ])
+
+futureDates_df['forecast'] = result.predict(start=144, end=200, dynamic= True)
+futureDates_df[['Thousands of Passengers', 'forecast']].plot()
+
+forecast_df = futureDates_df['forecast'][144:]
+forecast_df = forecast_df.rename_axis('Month').reset_index()
+
+forecast_df.to_csv('out.csv', index=False)
